@@ -282,6 +282,37 @@ def get_pileval(tokenizer, nsamples, seed, seqlen=512):
     ], None
 
 
+def get_sft_zh(tokenizer, nsamples, seed, seqlen=512):
+    from datasets import load_dataset
+    from datasets.builder import DatasetGenerationError
+    try:
+        dataset = load_dataset('TigerResearch/sft_zh', split='train')
+    except DatasetGenerationError:
+        raise InterruptedError('There have been some issues when generating '
+                               'the dataset, you could try to download it '
+                               'locally first, and replace the `data_files`'
+                               'with local addresses or use other datasets '
+                               '(c4, wiki, ptb, sft_zh).')
+    import random
+    random.seed(seed)
+
+    dataset = dataset.shuffle(seed=seed)
+    trainloader = []
+    for d in dataset:
+        if len(trainloader) >= nsamples:
+            break
+        if d['input'] and len(d['input']):
+            ex = f'Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\n\n### Instruction:\n{d["instruction"]}\n\n### Input:\n{d["input"]}\n\n### Response:\n{d["output"]}'
+        else:
+            ex = f'Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{d["instruction"]}\n\n### Response:\n{d["output"]}'
+        encoded_ex = tokenizer(ex, return_tensors='pt')
+        if encoded_ex.input_ids.shape[1] < seqlen:
+            continue
+        inp = encoded_ex.input_ids[:, :seqlen]
+        trainloader.append(inp)
+    return trainloader, None
+
+
 def get_calib_loaders(name, tokenizer, nsamples=128, seed=0, seqlen=2048):
     """Get calibration data loaders for a dataset.
 
@@ -309,3 +340,14 @@ def get_calib_loaders(name, tokenizer, nsamples=128, seed=0, seqlen=2048):
 
     if 'pileval' in name:
         return get_pileval(tokenizer, nsamples, seed, seqlen)
+    
+    if 'sft-zh' in name:
+        return get_sft_zh(tokenizer, nsamples, seed, seqlen)
+
+
+if __name__ == '__main__':
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained('OpenBuddy/openbuddy-llama2-70b-v10.1-bf16',
+                                              use_fast=False,
+                                              trust_remote_code=True)
+    get_sft_zh(tokenizer, 128, 0, 2048)

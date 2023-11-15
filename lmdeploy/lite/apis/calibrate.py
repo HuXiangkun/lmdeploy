@@ -122,8 +122,8 @@ def calibrate(model: str,
             Defaults to 'cuda'.
     """
 
-    assert calib_dataset in ['c4', 'ptb', 'wikitext2', 'pileval'], \
-        'Support only `c4`, `ptb`, `wikitext2` or `pileval`.'
+    assert calib_dataset in ['c4', 'ptb', 'wikitext2', 'pileval', 'sft-zh'], \
+        'Support only `c4`, `ptb`, `wikitext2`, `pileval` or `sft-zh`.'
 
     # Load tokenizer and configuration
     tokenizer = AutoTokenizer.from_pretrained(model,
@@ -170,7 +170,9 @@ def calibrate(model: str,
     device_map = infer_auto_device_map(model,
                                        no_split_module_classes=[layer_type])
     for name in device_map.keys():
-        if name in decoder_layers or 'lm_head' in name:
+        if device == 'cpu':
+            device_map[name] = 'cpu'
+        elif name in decoder_layers or 'lm_head' in name:
             device_map[name] = 'cpu'
         else:
             device_map[name] = 0
